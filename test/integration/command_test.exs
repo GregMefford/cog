@@ -110,7 +110,22 @@ defmodule Integration.CommandTest do
   end
 
   test "running a command in a pipeline with nil output", %{user: user} do
-    response = send_message(user, ~s(@bot: seed '[{"a": "1", "b": "2"}, {"a": "3"}]' | filter --field="b" | echo $a))
+    response = send_message(user, ~s(@bot: seed '[{"a": "1", "b": "2"}, {"a": "3"}]' | filter --path=b | echo $a))
     assert response["data"]["response"] == "1"
+  end
+
+  test "reading the path to filter a certain path", %{user: user} do
+    response = send_message(user, ~s(@bot: seed '[{"foo":{"bar":{"baz":"stuff"}}}, {"foo": {"bar":{"baz":"me"}}}]' | operable:filter --path="foo.bar"))
+    assert response["data"]["response"] == "{\n  \"bar\": {\n    \"baz\": \"stuff\"\n  }\n}\n{\n  \"bar\": {\n    \"baz\": \"me\"\n  }\n}"
+  end
+
+  test "reading the path to allow quoted path if supplied", %{user: user} do
+    response = send_message(user, ~s(@bot: seed '[{"foo":{"bar.qux":{"baz":"stuff"}}}, {"foo": {"bar":{"baz":"me"}}}]' | operable:filter --path="foo.\\"bar.qux\\".baz"))
+    assert response["data"]["response"] == "{\n  \"baz\": \"stuff\"\n}"
+  end
+
+  test "returning the path that contains the matching value", %{user: user} do
+    response = send_message(user, ~s(@bot: seed '[{"foo":{"bar":{"baz":"stuff"}}}, {"foo": {"bar":{"baz":"me"}}}]' | operable:filter --path="foo.bar.baz" --matches=me))
+    assert response["data"]["response"] == "{\n  \"baz\": \"me\"\n}"
   end
 end
