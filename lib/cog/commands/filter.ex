@@ -40,23 +40,16 @@ defmodule Cog.Commands.Filter do
     |> fetch(item, matches)
   end
   defp maybe_filter(item, %{"path" => path}) do
-    build_path(String.split(path, "."), [], [])
-    |> fetch(item)
+    full_path = build_path(String.split(path, "."), [], [])
+    case get_in(item, full_path) do
+      nil -> nil
+      _ -> item
+    end
   end
   defp maybe_filter(_item, %{"matches" => _matches}),
     do: %{error: "Please include a `path` to match with"}
-  defp maybe_filter(item, _),
-    do: item
-
-  defp fetch([], item), do: item
-  defp fetch([key|path], item) do
-    result = case Access.fetch(item, key) do
-      {:ok, _} ->
-        fetch_path(true, path, item, key)
-      :error ->
-        nil
-    end
-    fetch(path, result)
+  defp maybe_filter(item, _) do
+    item
   end
 
   defp fetch([], item, matches) do
@@ -66,21 +59,17 @@ defmodule Cog.Commands.Filter do
   end
   defp fetch(_, nil, _), do: nil
   defp fetch([key|path], item, matches) do
-    result = with {:ok, value} <- Access.fetch(item, key),
+  match = with {:ok, value} <- Access.fetch(item, key),
       regex = compile_regex(matches),
       path_string = to_string(value),
       do: String.match?(path_string, regex)
-    |> fetch_path(path, item, key)
-
-    fetch(path, result, matches)
+     case match do
+       true ->
+         item
+       _ ->
+         fetch(path, item, matches)
+     end
   end
-
-  defp fetch_path(true, [], item, _key), do: item
-  defp fetch_path(true, _path, item, key) do
-    {:ok, value} = Access.fetch(item, key)
-    value
-  end
-  defp fetch_path(_, _, _, _), do: nil
 
   defp fetch_match(true, item), do: item
   defp fetch_match(_, _item), do: nil
