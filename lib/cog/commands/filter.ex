@@ -15,9 +15,9 @@ defmodule Cog.Commands.Filter do
       > { "id": "91edb472-04cf-4bca-ba05-e51b63f26758",
           "command": "operable:permissions" }
       @bot #{Cog.embedded_bundle}:seed '[{"foo":{"bar.qux":{"baz":"stuff"}}}, {"foo": {"bar":{"baz":"me"}}}]' | #{Cog.embedded_bundle}:filter --path="foo.bar.baz""
-      > { "baz": "me" }
+      > [ {"foo": {"bar.qux": {"baz": "stuff"} } }, {"foo": {"bar": {"baz": "me"} } } ]
       @bot #{Cog.embedded_bundle}:seed '[{"foo":{"bar.qux":{"baz":"stuff"}}}, {"foo": {"bar":{"baz":"me"}}}]' | #{Cog.embedded_bundle}:filter --path="foo.\\"bar.qux\\".baz""
-      > { "baz": "stuff" }
+      > { "foo": {"bar.qux": {"baz": "stuff"} } }
 
   """
 
@@ -36,11 +36,11 @@ defmodule Cog.Commands.Filter do
   end
 
   defp maybe_filter(item, %{"path" => path, "matches" => matches}) do
-    build_path(String.split(path, "."), [], [])
+    build_path(path)
     |> fetch(item, matches)
   end
   defp maybe_filter(item, %{"path" => path}) do
-    full_path = build_path(String.split(path, "."), [], [])
+    full_path = build_path(path)
     case get_in(item, full_path) do
       nil -> nil
       _ -> item
@@ -59,16 +59,14 @@ defmodule Cog.Commands.Filter do
   end
   defp fetch(_, nil, _), do: nil
   defp fetch([key|path], item, matches) do
-  match = with {:ok, value} <- Access.fetch(item, key),
+    match = with {:ok, value} <- Access.fetch(item, key),
       regex = compile_regex(matches),
       path_string = to_string(value),
       do: String.match?(path_string, regex)
-     case match do
-       true ->
-         item
-       _ ->
-         fetch(path, item, matches)
-     end
+    case match do
+      true -> item
+      _ -> fetch(path, item, matches)
+    end
   end
 
   defp fetch_match(true, item), do: item
@@ -81,27 +79,15 @@ defmodule Cog.Commands.Filter do
   defp maybe_pluck(item, _),
     do: item
 
-  defp build_path([], [], path), do: path
-  defp build_path([key|remaining], acc, path) do
-    {path, acc} = cond do
-                    String.starts_with?(key, ["\"", "'"]) ->
-                      new_key = String.replace_leading(key, "\"", "")
-                      |> String.replace_leading("'", "")
-
-                      {path, acc ++ [new_key]}
-                    String.ends_with?(key, ["\"", "'"]) ->
-                      new_key = String.replace_trailing(key, "\"", "")
-                      |> String.replace_trailing("'", "")
-
-                      acc = acc ++ [new_key]
-                      full_key = Enum.join(acc, ".")
-                      {path ++ [full_key], []}
-                    acc != [] ->
-                      {path, acc ++ [key]}
-                    true ->
-                      {path ++ [key], acc}
-                  end
-    build_path(remaining, acc, path)
+  defp build_path(path) do
+    cond do
+      String.contains?(path, "\"") ->
+        Regex.split(~r/\.\"|\"\./, path)
+      String.contains?(path, "'") ->
+        Regex.split(~r/\.\'|\'\./, path)
+      true ->
+        Regex.split(~r/\./, path)
+    end
   end
 
   defp compile_regex(string) do
