@@ -32,12 +32,23 @@ defmodule Cog.Commands.Filter do
     |> maybe_filter(options)
     |> maybe_pluck(options)
 
-    {:reply, req.reply_to, result, state}
+    response = case result do
+      {:error, error} ->
+        translate_error(error)
+      path ->
+        path
+    end
+    {:reply, req.reply_to, response, state}
   end
 
   defp maybe_filter(item, %{"path" => path, "matches" => matches}) do
-    build_path(path)
-    |> fetch(item, matches)
+    case String.valid?(matches) do
+      true ->
+        build_path(path)
+        |> fetch(item, matches)
+      false ->
+        {:error, :bad_match}
+    end
   end
   defp maybe_filter(item, %{"path" => path}) do
     full_path = build_path(path)
@@ -47,7 +58,7 @@ defmodule Cog.Commands.Filter do
     end
   end
   defp maybe_filter(_item, %{"matches" => _matches}),
-    do: %{error: "Please include a `path` to match with"}
+    do: {:error, :missing_path}
   defp maybe_filter(item, _) do
     item
   end
@@ -65,6 +76,7 @@ defmodule Cog.Commands.Filter do
       do: String.match?(path_string, regex)
     case match do
       true -> item
+      {:error, error} -> {:error, error}
       _ -> fetch(path, item, matches)
     end
   end
@@ -98,4 +110,9 @@ defmodule Cog.Commands.Filter do
         Regex.compile!(regex, opts)
     end
   end
+
+  defp translate_error(:missing_path),
+    do: "Must specify `--path` with the `--matches` option"
+  defp translate_error(:bad_match),
+    do: "The regular expression in `--matches` does not compile correctly."
 end

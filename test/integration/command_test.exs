@@ -128,4 +128,9 @@ defmodule Integration.CommandTest do
     response = send_message(user, ~s(@bot: seed '[{"foo":{"bar":{"baz":"stuff"}}}, {"foo": {"bar":{"baz":"me"}}}]' | operable:filter --path="foo.bar.baz" --matches=me))
     assert response["data"]["response"] == "{\n  \"foo\": {\n    \"bar\": {\n      \"baz\": \"me\"\n    }\n  }\n}"
   end
+
+  test "returning an error if matches is not a valid string", %{user: user} do
+    response = send_message(user, ~s(@bot: seed '{"foo":{"bar":{"baz":"stuff"}}}' | operable:filter --path="foo.bar.baz" --matches=true))
+    assert response["data"]["response"] == "The regular expression in `--matches` does not compile correctly."
+  end
 end
