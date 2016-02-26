@@ -69,14 +69,7 @@ defmodule Cog.Commands.Filter do
   defp execute(%{errors: [_|_]}=state), do: state
   defp execute(%__MODULE__{expanded_path: nil, input: item, match: nil}=state),
     do: %{state | output: item}
-  defp execute(%__MODULE__{expanded_path: expanded_path, input: item, match: nil}=state),
-    do: check_path(item, expanded_path, state)
-  defp execute(%__MODULE__{expanded_path: expanded_path, input: item, match: match}=state) do
-    case String.match?(to_string(item), match) do
-      true -> check_path(item, expanded_path, state)
-      false -> state
-    end
-  end
+  defp execute(state), do: check_path(state)
 
   defp format(%__MODULE__{errors: [_|_]=errors}) do
     error_strings = errors
@@ -100,14 +93,21 @@ defmodule Cog.Commands.Filter do
   defp translate_error(:bad_match),
     do: "The regular expression in `--matches` does not compile correctly."
 
-  # Helper functions for the filter command
-  defp check_path(item, expanded_path, state) do
+  defp check_path(%__MODULE__{expanded_path: expanded_path, input: item, match: nil}=state) do
     case get_in(item, expanded_path) do
       nil -> state
       _ -> %{state | output: item}
     end
   end
+  defp check_path(%__MODULE__{expanded_path: expanded_path, input: item, match: match}=state) do
+    path = get_in(item, expanded_path)
+    case String.match?(to_string(path), match) do
+      true -> %{state | output: item}
+      false -> state
+    end
+  end
 
+  # Helper functions for the filter command
   defp build_path(path) do
     cond do
       String.contains?(path, "\"") ->

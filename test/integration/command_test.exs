@@ -143,4 +143,14 @@ defmodule Integration.CommandTest do
     response = send_message(user, ~s(@bot: seed '[{ "foo": { "one": { "name": "asdf" }, "two": { "name": "fdsa" } } }]' | operable:filter --path foo.one.name --matches "/blurp/"))
     assert response["data"]["response"] == "{}"
   end
+
+  test "filter matching using regular expression", %{user: user} do
+    response = send_message(user, ~s(@bot: seed '[ {"key": "Name", "value": "test1"}, {"key": "Name", "value": "test2"} ]' | operable:filter --path value --matches "test[0-9]"))
+    assert response["data"]["response"] == "{\n  \"value\": \"test1\",\n  \"key\": \"Name\"\n}\n{\n  \"value\": \"test2\",\n  \"key\": \"Name\"\n}"
+  end
+
+  test "filter where the path has no matching value but the matches value is in the input", %{user: user} do
+    response = send_message(user, ~s(@bot: seed '[ {"key": "Name", "value": "test1"}, {"key": "Name", "value": "test2"} ]' | operable:filter --path value --matches "Name"))
+    assert response["data"]["response"] == "{}\n{}"
+  end
 end
