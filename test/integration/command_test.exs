@@ -131,6 +131,11 @@ defmodule Integration.CommandTest do
 
   test "returning an error if matches is not a valid string", %{user: user} do
     response = send_message(user, ~s(@bot: seed '{"foo":{"bar":{"baz":"stuff"}}}' | operable:filter --path="foo.bar.baz" --matches=true))
-    assert response["data"]["response"] == "The regular expression in `--matches` does not compile correctly."
+    assert response["data"]["response"] == "@vanstee Whoops! An error occurred. \n* The regular expression in `--matches` does not compile correctly.\n\n"
+  end
+
+  test "returning an error if matches is used without a path", %{user: user} do
+    response = send_message(user, ~s(@bot: seed '{"foo":{"bar":{"baz":"stuff"}}}' | operable:filter --matches="stuff"))
+    assert response["data"]["response"] == "@vanstee Whoops! An error occurred. \n* Must specify `--path` with the `--matches` option.\n\n"
   end
 end

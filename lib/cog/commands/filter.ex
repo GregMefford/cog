@@ -8,11 +8,13 @@ defmodule Cog.Commands.Filter do
 
   ## Example
 
-      @bot #{Cog.embedded_bundle}:rules --list --for-command="#{Cog.embedded_bundle}:permissions" | #{Cog.embedded_bundle}:filter --path="rule" --return="id, command" --matches="/manage_users/"
+      @bot #{Cog.embedded_bundle}:rules --list --for-command="#{Cog.embedded_bundle}:permissions" | #{Cog.embedded_bundle}:filter --path="rule" --matches="/manage_users/"
       > { "id": "91edb472-04cf-4bca-ba05-e51b63f26758",
+          "rule": "operable:manage_users",
           "command": "operable:permissions" }
-      @bot #{Cog.embedded_bundle}:seed --list --for-command="#{Cog.embedded_bundle}:permissions" | #{Cog.embedded_bundle}:filter --path="rule" --return="id, command" --matches="/manage_users/"
+      @bot #{Cog.embedded_bundle}:seed --list --for-command="#{Cog.embedded_bundle}:permissions" | #{Cog.embedded_bundle}:filter --path="rule" --matches="/manage_users/"
       > { "id": "91edb472-04cf-4bca-ba05-e51b63f26758",
+          "rule": "operable:manage_users",
           "command": "operable:permissions" }
       @bot #{Cog.embedded_bundle}:seed '[{"foo":{"bar.qux":{"baz":"stuff"}}}, {"foo": {"bar":{"baz":"me"}}}]' | #{Cog.embedded_bundle}:filter --path="foo.bar.baz""
       > [ {"foo": {"bar.qux": {"baz": "stuff"} } }, {"foo": {"bar": {"baz": "me"} } } ]
@@ -22,74 +24,87 @@ defmodule Cog.Commands.Filter do
   """
 
   option "matches", type: "string", required: false
-  option "return", type: "list", required: false
   option "path", type: "string", required: false
 
+  defstruct req: nil, expanded_path: nil, match: nil, input: nil, output: nil, errors: []
+
   def handle_message(req, state) do
-    %{cog_env: item, options: options} = req
-
-    result = item
-    |> maybe_filter(options)
-    |> maybe_pluck(options)
-
-    response = case result do
+    case req |> validate |> execute |> format do
+      {:ok, data} ->
+        {:reply, req.reply_to, data, state}
       {:error, error} ->
-        translate_error(error)
-      path ->
-        path
+        {:error, req.reply_to, error, state}
     end
-    {:reply, req.reply_to, response, state}
   end
 
-  defp maybe_filter(item, %{"path" => path, "matches" => matches}) do
+  defp validate(req) do
+    %__MODULE__{req: req}
+    |> validate_options
+    |> validate_inputs
+  end
+
+  defp validate_options(%__MODULE__{req: %{options: %{"path" => path, "matches" => matches}}}=state) do
+    validate_matches(state, matches)
+    |> validate_path(path)
+  end
+  defp validate_options(%__MODULE__{req: %{options: %{"path" => path}}}=state),
+    do: validate_path(state, path)
+  defp validate_options(%__MODULE__{req: %{options: %{"matches" => _}}}=state),
+    do: add_errors(state, :missing_path)
+  defp validate_options(%__MODULE__{req: %{options: _}}=state),
+    do: state
+
+  defp validate_matches(state, matches) do
     case String.valid?(matches) do
-      true ->
-        build_path(path)
-        |> fetch(item, matches)
-      false ->
-        {:error, :bad_match}
-    end
-  end
-  defp maybe_filter(item, %{"path" => path}) do
-    full_path = build_path(path)
-    case get_in(item, full_path) do
-      nil -> nil
-      _ -> item
-    end
-  end
-  defp maybe_filter(_item, %{"matches" => _matches}),
-    do: {:error, :missing_path}
-  defp maybe_filter(item, _) do
-    item
-  end
-
-  defp fetch([], item, matches) do
-    match_str = Regex.compile!(matches)
-    match = Regex.match?(match_str, to_string(item))
-    fetch_match(match, item)
-  end
-  defp fetch(_, nil, _), do: nil
-  defp fetch([key|path], item, matches) do
-    match = with {:ok, value} <- Access.fetch(item, key),
-      regex = compile_regex(matches),
-      path_string = to_string(value),
-      do: String.match?(path_string, regex)
-    case match do
-      true -> item
-      {:error, error} -> {:error, error}
-      _ -> fetch(path, item, matches)
+      true -> %{state | match: compile_regex(matches)}
+      false -> add_errors(state, :bad_match)
     end
   end
 
-  defp fetch_match(true, item), do: item
-  defp fetch_match(_, _item), do: nil
+  def validate_path(state, path), do: %{state | expanded_path: build_path(path)}
 
-  defp maybe_pluck(item, %{"return" => []}),
-    do: item
-  defp maybe_pluck(item, %{"return" => fields}) when is_map(item),
-    do: Map.take(item, fields)
-  defp maybe_pluck(item, _),
-    do: item
+  defp validate_inputs(%__MODULE__{req: %{cog_env: item}}=state),
+    do: %{state | input: item}
+
+  defp execute(%{errors: [_|_]}=state), do: state
+  defp execute(%__MODULE__{expanded_path: nil, input: item, match: nil}=state),
+    do: %{state | ouput: item}
+  defp execute(%__MODULE__{expanded_path: expanded_path, input: item, match: nil}=state),
+    do: check_path(item, expanded_path, state)
+  defp execute(%__MODULE__{expanded_path: expanded_path, input: item, match: match}=state) do
+    case String.match?(to_string(item), match) do
+      true -> check_path(item, expanded_path, state)
+      false -> state
+    end
+  end
+
+  defp format(%__MODULE__{errors: [_|_]=errors}) do
+    error_strings = errors
+    |> Enum.map(&translate_error/1)
+    |> Enum.map(&("* #{&1}\n"))
+    {:error, """
+
+             #{error_strings}
+             """}
+  end
+  defp format(%__MODULE__{output: output}),
+    do: {:ok, output}
+
+  defp add_errors(input, error_or_errors),
+    do: Map.update!(input, :errors, &Enum.concat(&1, List.wrap(error_or_errors)))
+
+  defp translate_error(:missing_path),
+    do: "Must specify `--path` with the `--matches` option."
+  defp translate_error(:bad_match),
+    do: "The regular expression in `--matches` does not compile correctly."
+
+  # Helper functions for the filter command
+  defp check_path(item, expanded_path, state) do
+    case get_in(item, expanded_path) do
+      nil -> state
+      _ -> %{state | output: item}
+    end
+  end
 
   defp build_path(path) do
     cond do
@@ -110,9 +125,4 @@ defmodule Cog.Commands.Filter do
         Regex.compile!(regex, opts)
     end
   end
-
-  defp translate_error(:missing_path),
-    do: "Must specify `--path` with the `--matches` option"
-  defp translate_error(:bad_match),
-    do: "The regular expression in `--matches` does not compile correctly."
 end
