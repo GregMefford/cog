@@ -512,7 +512,11 @@ defmodule Cog.Command.Pipeline.Executor do
     # This is *NOT* a long-term solution.
     case TemplateCache.lookup(bundle_id, adapter, template) do
       fun when is_function(fun) ->
-        fun.(context)
+        body = case context do
+          nil -> %{result: nil}
+          body -> body
+        end
+        fun.(body)
       nil ->
         # Unfortunately, we don't have the bundle name or the command
         # name down here for this warning message :(

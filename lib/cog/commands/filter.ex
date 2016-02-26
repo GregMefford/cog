@@ -30,8 +30,8 @@ defmodule Cog.Commands.Filter do
 
   def handle_message(req, state) do
     case req |> validate |> execute |> format do
-      {:ok, data} ->
-        {:reply, req.reply_to, data, state}
+      {:ok, data, template} ->
+        {:reply, req.reply_to, template, data, state}
       {:error, error} ->
         {:error, req.reply_to, error, state}
     end
@@ -71,28 +71,6 @@ defmodule Cog.Commands.Filter do
     do: %{state | output: item}
   defp execute(state), do: check_path(state)
 
-  defp format(%__MODULE__{errors: [_|_]=errors}) do
-    error_strings = errors
-    |> Enum.map(&translate_error/1)
-    |> Enum.map(&("* #{&1}\n"))
-    {:error, """
-
-             #{error_strings}
-             """}
-  end
-  defp format(%__MODULE__{input: input, output: nil}) when is_map(input),
-    do: {:ok, %{}}
-  defp format(%__MODULE__{output: output}),
-    do: {:ok, output}
-
-  defp add_errors(input, error_or_errors),
-    do: Map.update!(input, :errors, &Enum.concat(&1, List.wrap(error_or_errors)))
-
-  defp translate_error(:missing_path),
-    do: "Must specify `--path` with the `--matches` option."
-  defp translate_error(:bad_match),
-    do: "The regular expression in `--matches` does not compile correctly."
-
   defp check_path(%__MODULE__{expanded_path: expanded_path, input: item, match: nil}=state) do
     case get_in(item, expanded_path) do
       nil -> state
@@ -106,6 +84,26 @@ defmodule Cog.Commands.Filter do
       false -> state
     end
   end
+
+  defp format(%__MODULE__{errors: [_|_]=errors}) do
+    error_strings = errors
+    |> Enum.map(&translate_error/1)
+    |> Enum.map(&("* #{&1}\n"))
+    {:error, """
+
+             #{error_strings}
+             """}
+  end
+  defp format(%__MODULE__{output: output}),
+    do: {:ok, output, "json"}
+
+  defp add_errors(input, error_or_errors),
+    do: Map.update!(input, :errors, &Enum.concat(&1, List.wrap(error_or_errors)))
+
+  defp translate_error(:missing_path),
+    do: "Must specify `--path` with the `--matches` option."
+  defp translate_error(:bad_match),
+    do: "The regular expression in `--matches` does not compile correctly."
 
   # Helper functions for the filter command
   defp build_path(path) do
