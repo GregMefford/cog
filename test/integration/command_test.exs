@@ -111,7 +111,7 @@ defmodule Integration.CommandTest do
 
   test "running a command in a pipeline with nil output", %{user: user} do
     response = send_message(user, ~s(@bot: seed '[{"a": "1", "b": "2"}, {"a": "3"}]' | filter --path=b | echo $a))
-    assert response["data"]["response"] == "1"
+    assert response["data"]["response"] == "1\n"
   end
 
   test "reading the path to filter a certain path", %{user: user} do
@@ -121,12 +121,12 @@ defmodule Integration.CommandTest do
 
   test "reading the path to allow quoted path if supplied", %{user: user} do
     response = send_message(user, ~s(@bot: seed '[{"foo":{"bar.qux":{"baz":"stuff"}}}, {"foo": {"bar":{"baz":"me"}}}]' | operable:filter --path="foo.\\"bar.qux\\".baz"))
-    assert response["data"]["response"] == "{\n  \"foo\": {\n    \"bar.qux\": {\n      \"baz\": \"stuff\"\n    }\n  }\n}"
+    assert response["data"]["response"] == "{\n  \"foo\": {\n    \"bar.qux\": {\n      \"baz\": \"stuff\"\n    }\n  }\n}\n{}"
   end
 
   test "returning the path that contains the matching value", %{user: user} do
     response = send_message(user, ~s(@bot: seed '[{"foo":{"bar":{"baz":"stuff"}}}, {"foo": {"bar":{"baz":"me"}}}]' | operable:filter --path="foo.bar.baz" --matches=me))
-    assert response["data"]["response"] == "{\n  \"foo\": {\n    \"bar\": {\n      \"baz\": \"me\"\n    }\n  }\n}"
+    assert response["data"]["response"] == "{}\n{\n  \"foo\": {\n    \"bar\": {\n      \"baz\": \"me\"\n    }\n  }\n}"
   end
 
   test "returning an error if matches is not a valid string", %{user: user} do
@@ -137,5 +137,10 @@ defmodule Integration.CommandTest do
   test "returning an error if matches is used without a path", %{user: user} do
     response = send_message(user, ~s(@bot: seed '{"foo":{"bar":{"baz":"stuff"}}}' | operable:filter --matches="stuff"))
     assert response["data"]["response"] == "@vanstee Whoops! An error occurred. \n* Must specify `--path` with the `--matches` option.\n\n"
+  end
+
+  test "an empty response from the filter command", %{user: user} do
+    response = send_message(user, ~s(@bot: seed '[{ "foo": { "one": { "name": "asdf" }, "two": { "name": "fdsa" } } }]' | operable:filter --path foo.one.name --matches "/blurp/"))
+    assert response["data"]["response"] == "{}"
   end
 end
