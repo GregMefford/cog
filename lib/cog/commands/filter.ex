@@ -68,7 +68,7 @@ defmodule Cog.Commands.Filter do
 
   defp execute(%{errors: [_|_]}=state), do: state
   defp execute(%__MODULE__{expanded_path: nil, input: item, match: nil}=state),
-    do: %{state | ouput: item}
+    do: %{state | output: item}
   defp execute(%__MODULE__{expanded_path: expanded_path, input: item, match: nil}=state),
     do: check_path(item, expanded_path, state)
   defp execute(%__MODULE__{expanded_path: expanded_path, input: item, match: match}=state) do
