@@ -87,6 +87,8 @@ defmodule Cog.Commands.Filter do
              #{error_strings}
              """}
   end
+  defp format(%__MODULE__{input: input, output: nil}) when is_map(input),
+    do: {:ok, %{}}
   defp format(%__MODULE__{output: output}),
     do: {:ok, output}
 
