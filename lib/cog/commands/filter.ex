@@ -111,12 +111,13 @@ defmodule Cog.Commands.Filter do
   defp build_path(path) do
     cond do
       String.contains?(path, "\"") ->
-        Regex.split(~r/\.\"|\"\./, path)
+        Regex.split(~r/\.\"|\"\.|\"/, path)
       String.contains?(path, "'") ->
-        Regex.split(~r/\.\'|\'\./, path)
+        Regex.split(~r/\.\'|\'\.|'/, path)
       true ->
         Regex.split(~r/\./, path)
     end
+    |> Enum.reject(fn(x) -> x == "" end)
   end
 
   defp compile_regex(string) do
