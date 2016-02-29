@@ -95,7 +95,7 @@ defmodule Cog.Commands.Filter do
              """}
   end
   defp format(%__MODULE__{output: output}),
-    do: {:ok, output, "json"}
+    do: {:ok, output, "filter"}
 
   defp add_errors(input, error_or_errors),
     do: Map.update!(input, :errors, &Enum.concat(&1, List.wrap(error_or_errors)))

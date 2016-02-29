@@ -116,17 +116,17 @@ defmodule Integration.CommandTest do
 
   test "reading the path to filter a certain path", %{user: user} do
     response = send_message(user, ~s(@bot: seed '[{"foo":{"bar":{"baz":"stuff"}}}, {"foo": {"bar":{"baz":"me"}}}]' | operable:filter --path="foo.bar"))
-    assert response["data"]["response"] == "{\n  \"foo\": {\n    \"bar\": {\n      \"baz\": \"stuff\"\n    }\n  }\n}\n{\n  \"foo\": {\n    \"bar\": {\n      \"baz\": \"me\"\n    }\n  }\n}"
+    assert response["data"]["response"] == "\n```\n{{{\"foo\":{\"bar\":{\"baz\":\"stuff\"}}}}}\n```\n\n\n```\n{{{\"foo\":{\"bar\":{\"baz\":\"me\"}}}}}\n```\n"
   end
 
   test "reading the path to allow quoted path if supplied", %{user: user} do
     response = send_message(user, ~s(@bot: seed '[{"foo":{"bar.qux":{"baz":"stuff"}}}, {"foo": {"bar":{"baz":"me"}}}]' | operable:filter --path="foo.\\"bar.qux\\".baz"))
-    assert response["data"]["response"] == "{\n  \"foo\": {\n    \"bar.qux\": {\n      \"baz\": \"stuff\"\n    }\n  }\n}"
+    assert response["data"]["response"] == "\n```\n{{{\"foo\":{\"bar.qux\":{\"baz\":\"stuff\"}}}}}\n```\n"
   end
 
   test "returning the path that contains the matching value", %{user: user} do
     response = send_message(user, ~s(@bot: seed '[{"foo":{"bar":{"baz":"stuff"}}}, {"foo": {"bar":{"baz":"me"}}}]' | operable:filter --path="foo.bar.baz" --matches=me))
-    assert response["data"]["response"] == "{\n  \"foo\": {\n    \"bar\": {\n      \"baz\": \"me\"\n    }\n  }\n}"
+    assert response["data"]["response"] == "\n```\n{{{\"foo\":{\"bar\":{\"baz\":\"me\"}}}}}\n```\n"
   end
 
   test "returning an error if matches is not a valid string", %{user: user} do
@@ -141,19 +141,19 @@ defmodule Integration.CommandTest do
 
   test "an empty response from the filter command single input item", %{user: user} do
     response = send_message(user, ~s(@bot: seed '[{ "foo": { "one": { "name": "asdf" }, "two": { "name": "fdsa" } } }]' | operable:filter --path="foo.one.name" --matches="/blurp/"))
-    assert response["data"]["response"] == "{\n  \"result\": null\n}"
+    assert response["data"]["response"] == "No items found\n"
   end
 
   test "filter matching using regular expression", %{user: user} do
     response = send_message(user, ~s(@bot: seed '[ {"key": "Name", "value": "test1"}, {"key": "Name", "value": "test2"} ]' | operable:filter --path="value" --matches="test[0-9]"))
-    assert response["data"]["response"] == "{\n  \"value\": \"test1\",\n  \"key\": \"Name\"\n}\n{\n  \"value\": \"test2\",\n  \"key\": \"Name\"\n}"
+    assert response["data"]["response"] == "\n```\n{{{\"value\":\"test1\",\"key\":\"Name\"}}}\n```\n\n\n```\n{{{\"value\":\"test2\",\"key\":\"Name\"}}}\n```\n"
   end
 
-  # Skipping this test until we fix multiple nil outputs being mapped to a single nil output
   @tag :skip
+  # Skipping this test until we fix multiple nil outputs being mapped to a single nil output
   test "filter where the path has no matching value but the matches value is in the input list", %{user: user} do
     response = send_message(user, ~s(@bot: seed '[ {"key": "Name", "value": "test1"}, {"key": "Name", "value": "test2"} ]' | operable:filter --path="value" --matches="Name"))
-    assert response["data"]["response"] == ""
+    assert response["data"]["response"] == "No items found\n"
   end
 
   test "filter where execution further down the pipeline only executes how many times the output is generated from the filter command", %{user: user} do

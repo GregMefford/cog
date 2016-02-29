@@ -489,13 +489,11 @@ defmodule Cog.Command.Pipeline.Executor do
   defp default_template(_),
     do: "raw"
 
-  # Could be a nil or empty list response; be sure to return a map for templates
-  defp render_template(bundle_id, adapter, template, context) when is_nil(context) or context == [] do
-    render_template(bundle_id, adapter, template, %{body: nil})
-  end
   # Could be a raw response or rendered lines of output; render each line separately
   defp render_template(bundle_id, adapter, template, context) when is_list(context) do
-    Enum.map_join(context, "\n", &render_template(bundle_id, adapter, template, &1))
+    x = Enum.map_join(context, "\n", &render_template(bundle_id, adapter, template, &1))
+    IO.inspect({"x", x})
+    x
   end
   # Rendered lines of output; render each line of text separately
   defp render_template(bundle_id, adapter, nil, %{"body" => context}) when is_list(context) do
@@ -514,6 +512,9 @@ defmodule Cog.Command.Pipeline.Executor do
     # through render_template again to pick up a default
     #
     # This is *NOT* a long-term solution.
+    #    IO.inspect({"context", context})
+    #    template_source = Cog.Queries.Template.template_source(bundle_id, adapter, template) |> Cog.Repo.one!
+    #    FuManchu.render!(template_source, context)
     case TemplateCache.lookup(bundle_id, adapter, template) do
       fun when is_function(fun) ->
         fun.(context)
